@@ -1,7 +1,8 @@
 import re
+import os
 import asyncio
 from collections import Counter
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from src.config import TWEET_LIMITS
@@ -11,7 +12,7 @@ from src.gpt_analyzer import generate_profile_analysis
 from src.database import (
     init_db, get_cached_analysis, save_analysis,
     get_negative_cache, save_negative_cache,
-    get_analysis_lock, close_pool,
+    get_analysis_lock, close_pool, check_rate_limit,
 )
 
 app = FastAPI(title="KimBuX API")
@@ -45,7 +46,24 @@ async def shutdown():
 
 
 @app.post("/api/analyze")
-async def analyze(req: AnalyzeRequest):
+async def analyze(req: AnalyzeRequest, request: Request):
+    # Rate limiting check
+    client_ip = request.client.host if request.client else "unknown"
+    admin_ips = os.getenv("ADMIN_IPS", "").split(",") if os.getenv("ADMIN_IPS") else []
+    
+    is_allowed, remaining = await check_rate_limit(client_ip, max_requests=10, admin_ips=admin_ips)
+    if not is_allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Rate limit exceeded",
+                "message": "Günlük analiz limitinize ulaştınız. Yarın tekrar deneyin.",
+                "limit": 10,
+                "remaining": 0,
+                "reset_at": "midnight UTC"
+            }
+        )
+    
     username = req.username.lstrip("@").strip().lower()
     limit = req.limit
     order = req.order

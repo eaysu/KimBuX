@@ -60,8 +60,18 @@ async def init_db():
                 UNIQUE(username, error_type)
             );
 
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                id SERIAL PRIMARY KEY,
+                ip_address TEXT NOT NULL,
+                request_count INT NOT NULL DEFAULT 1,
+                last_request_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                reset_at TIMESTAMPTZ NOT NULL,
+                UNIQUE(ip_address)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_analyses_username ON analyses(username);
             CREATE INDEX IF NOT EXISTS idx_negative_cache_username ON negative_cache(username);
+            CREATE INDEX IF NOT EXISTS idx_rate_limits_ip ON rate_limits(ip_address);
         """)
 
 
@@ -186,7 +196,72 @@ async def get_negative_cache(username: str) -> dict | None:
         }
 
 
-async def save_negative_cache(username: str, error_type: str, error_message: str):
+async def check_rate_limit(ip_address: str, max_requests: int = 10, admin_ips: list = None) -> tuple[bool, int]:
+    """
+    Check if IP has exceeded rate limit.
+    Returns (is_allowed, remaining_requests).
+    Admin IPs are exempt from rate limiting.
+    """
+    if admin_ips and ip_address in admin_ips:
+        return True, 999  # Admin unlimited
+    
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        now = datetime.now(timezone.utc)
+        reset_time = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        
+        # Get or create rate limit entry
+        row = await conn.fetchrow(
+            """
+            SELECT request_count, reset_at
+            FROM rate_limits
+            WHERE ip_address = $1
+            """,
+            ip_address
+        )
+        
+        if row is None:
+            # First request from this IP today
+            await conn.execute(
+                """
+                INSERT INTO rate_limits (ip_address, request_count, reset_at)
+                VALUES ($1, 1, $2)
+                """,
+                ip_address, reset_time
+            )
+            return True, max_requests - 1
+        
+        # Check if reset time has passed
+        if now >= row['reset_at']:
+            # Reset counter
+            await conn.execute(
+                """
+                UPDATE rate_limits
+                SET request_count = 1, last_request_at = $1, reset_at = $2
+                WHERE ip_address = $3
+                """,
+                now, reset_time, ip_address
+            )
+            return True, max_requests - 1
+        
+        # Check if limit exceeded
+        if row['request_count'] >= max_requests:
+            return False, 0
+        
+        # Increment counter
+        await conn.execute(
+            """
+            UPDATE rate_limits
+            SET request_count = request_count + 1, last_request_at = $1
+            WHERE ip_address = $2
+            """,
+            now, ip_address
+        )
+        
+        return True, max_requests - row['request_count'] - 1
+
+
+async def save_negative_cache(username: str, error_type: str, error_message: str = ""):
     """
     Save a negative cache entry.
     - user_not_found: 24h TTL

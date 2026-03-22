@@ -51,37 +51,46 @@ async def _gpt_call_with_retry(messages, temperature=0.3, max_tokens=300):
     raise Exception("GPT API rate limit exceeded after retries")
 
 
+async def _summarize_batch(batch: list[str], batch_index: int) -> str:
+    """Summarize a single batch of tweets."""
+    batch_text = "\n---\n".join(batch)
+    
+    # Small delay for non-first batches to avoid rate limits
+    if batch_index > 0:
+        await asyncio.sleep(0.5)  # Reduced from 2s to 0.5s
+    
+    result = await _gpt_call_with_retry(
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a social media analyst. Summarize the following batch of tweets "
+                    "in 3-4 sentences. Focus on: main topics discussed, tone/mood, "
+                    "recurring themes, and notable opinions. Be concise and objective."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Tweets:\n{batch_text}",
+            },
+        ],
+        temperature=0.3,
+        max_tokens=300,
+    )
+    return result
+
+
 async def _batch_summarize(cleaned_tweets: list[str]) -> list[str]:
-    """Summarize tweets in batches of ~GPT_BATCH_SIZE."""
-    summaries = []
-    for i in range(0, len(cleaned_tweets), GPT_BATCH_SIZE):
-        batch = cleaned_tweets[i:i + GPT_BATCH_SIZE]
-        batch_text = "\n---\n".join(batch)
-
-        # Delay between batches to avoid rate limits
-        if i > 0:
-            await asyncio.sleep(2)
-
-        result = await _gpt_call_with_retry(
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a social media analyst. Summarize the following batch of tweets "
-                        "in 3-4 sentences. Focus on: main topics discussed, tone/mood, "
-                        "recurring themes, and notable opinions. Be concise and objective."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"Tweets:\n{batch_text}",
-                },
-            ],
-            temperature=0.3,
-            max_tokens=300,
-        )
-        summaries.append(result)
-
+    """Summarize tweets in batches - parallel execution for speed."""
+    batches = [
+        cleaned_tweets[i:i + GPT_BATCH_SIZE]
+        for i in range(0, len(cleaned_tweets), GPT_BATCH_SIZE)
+    ]
+    
+    # Run all batches in parallel (with staggered delays inside each)
+    tasks = [_summarize_batch(batch, i) for i, batch in enumerate(batches)]
+    summaries = await asyncio.gather(*tasks)
+    
     return summaries
 
 
