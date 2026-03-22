@@ -1,5 +1,6 @@
 import re
 import os
+import time
 import asyncio
 from collections import Counter
 from fastapi import FastAPI, HTTPException, Request
@@ -104,15 +105,30 @@ async def analyze(req: AnalyzeRequest, request: Request):
     async with _analysis_semaphore:
         async with lock:
             try:
+                # Performance timing
+                timings = {}
+                start_total = time.time()
+                
+                # Login
+                start = time.time()
                 tc = TwitterClient()
                 await tc.login()
+                timings["login"] = round(time.time() - start, 2)
+                
+                # Profile fetch
+                start = time.time()
                 profile = await tc.get_profile(username)
+                timings["profile_fetch"] = round(time.time() - start, 2)
 
                 if profile.get("protected"):
                     await save_negative_cache(username, "protected_account", "This account is protected.")
                     raise HTTPException(status_code=403, detail="Protected account.")
 
+                # Tweet scraping
+                start = time.time()
                 tweets = await tc.get_tweets(username, limit=limit)
+                timings["tweet_scrape"] = round(time.time() - start, 2)
+                
                 if not tweets:
                     raise HTTPException(status_code=404, detail="No eligible tweets found.")
 
@@ -120,33 +136,23 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 if order == "oldest":
                     tweets = list(reversed(tweets))
 
-                # Fetch replies for bestfriend detection (best effort, don't fail)
-                bestfriend = None
-                try:
-                    replies = await tc.get_replies(username, max_tweets=150)
-                    reply_counts = Counter()
-                    if replies:
-                        reply_counts.update(r["reply_to"] for r in replies)
-                    # Also add mentions from normal tweets
-                    for t in tweets:
-                        for m in re.findall(r"@(\w+)", t.get("text", "")):
-                            if m.lower() != username:
-                                reply_counts[m.lower()] += 1
-                    if reply_counts:
-                        top = reply_counts.most_common(5)
-                        bestfriend = [
-                            {"username": u, "count": c} for u, c in top
-                        ]
-                except Exception:
-                    pass
-
+                # Stats computation
+                start = time.time()
                 stats = compute_stats(tweets)
-                if bestfriend:
-                    stats["x_bestfriend"] = bestfriend
+                timings["stats_compute"] = round(time.time() - start, 2)
 
+                # GPT analysis
+                start = time.time()
                 gpt_analysis = await generate_profile_analysis(profile, stats, tweets)
+                timings["gpt_analysis"] = round(time.time() - start, 2)
 
+                # Database save
+                start = time.time()
                 await save_analysis(username, cache_scope, profile, tweets, stats, gpt_analysis)
+                timings["db_save"] = round(time.time() - start, 2)
+                
+                # Total time
+                timings["total"] = round(time.time() - start_total, 2)
 
                 # Build data warnings
                 data_warning = None
@@ -161,6 +167,20 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 elif total_account and total_account > 10000:
                     data_warning = f"Bu hesapta toplam {total_account:,} tweet bulunuyor ancak yalnızca {tweet_count} tanesi analiz edildi. Çok fazla veri olduğundan analiz, hesabın tamamını temsil etmeyebilir."
 
+                # Log performance metrics
+                print(f"\n{'='*70}")
+                print(f"PERFORMANCE METRICS - @{username} ({limit} tweets)")
+                print(f"{'='*70}")
+                print(f"Login:           {timings['login']}s")
+                print(f"Profile fetch:   {timings['profile_fetch']}s")
+                print(f"Tweet scrape:    {timings['tweet_scrape']}s")
+                print(f"Stats compute:   {timings['stats_compute']}s")
+                print(f"GPT analysis:    {timings['gpt_analysis']}s")
+                print(f"DB save:         {timings['db_save']}s")
+                print(f"{'='*70}")
+                print(f"TOTAL:           {timings['total']}s")
+                print(f"{'='*70}\n")
+
                 return {
                     "from_cache": False,
                     "profile": profile,
@@ -169,6 +189,7 @@ async def analyze(req: AnalyzeRequest, request: Request):
                     "analyzed_at": "just now",
                     "tweet_count": tweet_count,
                     "data_warning": data_warning,
+                    "performance": timings,
                 }
 
             except HTTPException:

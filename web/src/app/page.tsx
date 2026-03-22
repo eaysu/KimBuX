@@ -12,7 +12,7 @@ type AnalysisState = "idle" | "loading" | "done" | "error";
 
 export default function Home() {
   const [username, setUsername] = useState("");
-  const [limit, setLimit] = useState(100);
+  const [limit, setLimit] = useState(50);
   const [order, setOrder] = useState<"latest" | "oldest">("latest");
   const [state, setState] = useState<AnalysisState>("idle");
   const [result, setResult] = useState<any>(null);
@@ -129,8 +129,8 @@ export default function Home() {
               style={{ color: "var(--text-muted)" }}>
               Analiz Limiti
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[100, 500, 1000].map((val) => (
+            <div className="grid grid-cols-4 gap-2">
+              {[50, 200, 500, 1000].map((val) => (
                 <button
                   type="button"
                   key={val}
@@ -147,9 +147,10 @@ export default function Home() {
               ))}
             </div>
             <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              {limit === 100 && "Tahmini süre: ~1-2 dakika"}
-              {limit === 500 && "Tahmini süre: ~3-4 dakika"}
-              {limit === 1000 && "Tahmini süre: ~5-7 dakika — daha uzun sürebilir"}
+              {limit === 50 && "Tahmini süre: ~30-45 saniye"}
+              {limit === 200 && "Tahmini süre: ~2-3 dakika"}
+              {limit === 500 && "Tahmini süre: ~4-5 dakika"}
+              {limit === 1000 && "Tahmini süre: ~7-9 dakika"}
             </p>
           </div>
 

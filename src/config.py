@@ -15,7 +15,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 COOKIES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cookies.json")
 
 MAX_TWEETS = 1000
-TWEET_LIMITS = [100, 500, 1000]
+TWEET_LIMITS = [50, 200, 500, 1000]
 
 ACTIVE_ACCOUNT_DAILY_TWEETS = 3
 ACTIVE_ACCOUNT_TTL_DAYS = 15
