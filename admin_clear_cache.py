@@ -3,13 +3,14 @@
 Admin CLI tool to clear database cache.
 
 Usage:
-    python admin_clear_cache.py [--all|--negative|--analyses]
+    python admin_clear_cache.py [--all|--negative|--analyses|--username USERNAME]
 
 Options:
-    --all         Clear everything (analyses + negative cache)
-    --negative    Clear only negative cache (failed user lookups)
-    --analyses    Clear only analysis cache
-    (no args)     Interactive mode - ask what to clear
+    --all              Clear everything (analyses + negative cache)
+    --negative         Clear only negative cache (failed user lookups)
+    --analyses         Clear only analysis cache
+    --username USER    Clear cache for specific username only
+    (no args)          Interactive mode - ask what to clear
 """
 import asyncio
 import sys
@@ -34,6 +35,52 @@ async def clear_analyses():
         count = int(result.split()[-1]) if result else 0
         print(f"✅ Cleared {count} cached analyses")
         return count
+
+
+async def clear_username_cache(username: str):
+    """Clear cache for specific username"""
+    username = username.lstrip('@').strip().lower()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Clear from analyses
+        result_analyses = await conn.execute(
+            'DELETE FROM analyses WHERE username = $1', username
+        )
+        count_analyses = int(result_analyses.split()[-1]) if result_analyses else 0
+        
+        # Clear from negative cache
+        result_negative = await conn.execute(
+            'DELETE FROM negative_cache WHERE username = $1', username
+        )
+        count_negative = int(result_negative.split()[-1]) if result_negative else 0
+        
+        total = count_analyses + count_negative
+        if total > 0:
+            print(f"✅ Cleared cache for @{username}:")
+            if count_analyses > 0:
+                print(f"   - {count_analyses} analysis cache entry/entries")
+            if count_negative > 0:
+                print(f"   - {count_negative} negative cache entry/entries")
+        else:
+            print(f"ℹ️  No cache found for @{username}")
+        
+        return total
+
+
+async def list_cached_usernames():
+    """List all cached usernames"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get from analyses
+        analyses = await conn.fetch(
+            'SELECT username, created_at FROM analyses ORDER BY created_at DESC'
+        )
+        # Get from negative cache
+        negative = await conn.fetch(
+            'SELECT username, cached_at FROM negative_cache ORDER BY cached_at DESC'
+        )
+        
+        return analyses, negative
 
 
 async def get_stats():
@@ -72,9 +119,17 @@ async def main():
         elif arg == '--analyses':
             print("Clearing analyses cache...")
             await clear_analyses()
+        elif arg == '--username':
+            if len(sys.argv) < 3:
+                print("❌ Error: --username requires a username argument")
+                print("Usage: python admin_clear_cache.py --username USERNAME")
+                return 1
+            username = sys.argv[2]
+            print(f"Clearing cache for @{username.lstrip('@')}...")
+            await clear_username_cache(username)
         else:
             print(f"❌ Unknown option: {arg}")
-            print("Usage: python admin_clear_cache.py [--all|--negative|--analyses]")
+            print("Usage: python admin_clear_cache.py [--all|--negative|--analyses|--username USERNAME]")
             return 1
     else:
         # Interactive mode
@@ -82,9 +137,10 @@ async def main():
         print("1. Negative cache only (failed lookups, rate limits)")
         print("2. Analyses cache only (successful analyses)")
         print("3. Everything (both)")
-        print("4. Cancel")
+        print("4. Specific username")
+        print("5. Cancel")
         print()
-        choice = input("Enter choice (1-4): ").strip()
+        choice = input("Enter choice (1-5): ").strip()
         
         if choice == '1':
             await clear_negative_cache()
@@ -94,6 +150,36 @@ async def main():
             await clear_negative_cache()
             await clear_analyses()
         elif choice == '4':
+            # Show cached usernames
+            analyses, negative = await list_cached_usernames()
+            if not analyses and not negative:
+                print("\nℹ️  No cached usernames found.")
+                return 0
+            
+            print("\n📋 Cached usernames:")
+            print("-" * 70)
+            
+            all_usernames = set()
+            if analyses:
+                print("\nAnalysis cache:")
+                for i, row in enumerate(analyses, 1):
+                    print(f"  {i}. @{row['username']}")
+                    all_usernames.add(row['username'])
+            
+            if negative:
+                print("\nNegative cache (failed):")
+                for row in negative:
+                    if row['username'] not in all_usernames:
+                        print(f"  • @{row['username']}")
+                    all_usernames.add(row['username'])
+            
+            print("-" * 70)
+            username = input("\nEnter username to clear (or 'cancel'): ").strip()
+            if username.lower() == 'cancel':
+                print("Cancelled.")
+                return 0
+            await clear_username_cache(username)
+        elif choice == '5':
             print("Cancelled.")
             return 0
         else:
