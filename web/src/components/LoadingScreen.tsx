@@ -40,13 +40,6 @@ function getEstimate(limit: number): string {
   return "~30-45 sn";
 }
 
-interface FallingTweet {
-  id: number;
-  text: string;
-  visible: boolean;
-  left: number;
-}
-
 export default function LoadingScreen({
   step,
   username,
@@ -59,8 +52,8 @@ export default function LoadingScreen({
   previewTweets?: string[];
 }) {
   const [elapsed, setElapsed] = useState(0);
-  const [fallingTweets, setFallingTweets] = useState<FallingTweet[]>([]);
-  const [tweetIdCounter, setTweetIdCounter] = useState(0);
+  const [currentTweetIndex, setCurrentTweetIndex] = useState(0);
+  const [fadeOut, setFadeOut] = useState(false);
   
   // Use real tweets if available, otherwise use samples
   const tweetsToShow = previewTweets.length > 0 ? previewTweets : SAMPLE_TWEETS;
@@ -70,36 +63,21 @@ export default function LoadingScreen({
     return () => clearInterval(t);
   }, []);
 
-  // Falling tweet animation
+  // Sequential tweet carousel - change every 2 seconds
   useEffect(() => {
-    const spawnTweet = () => {
-      const randomTweet = tweetsToShow[Math.floor(Math.random() * tweetsToShow.length)];
-      const newTweet: FallingTweet = {
-        id: tweetIdCounter,
-        text: randomTweet,
-        visible: true,
-        left: Math.random() * 80 + 10, // 10-90% range
-      };
-      
-      setTweetIdCounter(prev => prev + 1);
-      setFallingTweets(prev => [...prev, newTweet]);
-
-      // Remove tweet after animation completes
-      setTimeout(() => {
-        setFallingTweets(prev => prev.filter(t => t.id !== newTweet.id));
-      }, 4000);
-    };
-
-    // Spawn first tweet immediately
-    spawnTweet();
-
-    // Then spawn new tweets every 2-4 seconds
     const interval = setInterval(() => {
-      spawnTweet();
-    }, 2000 + Math.random() * 2000);
+      // Fade out current tweet
+      setFadeOut(true);
+      
+      // After 300ms, change to next tweet and fade in
+      setTimeout(() => {
+        setCurrentTweetIndex((prev) => (prev + 1) % tweetsToShow.length);
+        setFadeOut(false);
+      }, 300);
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [tweetIdCounter]);
+  }, [tweetsToShow.length]);
 
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
@@ -174,53 +152,23 @@ export default function LoadingScreen({
         </div>
       </div>
 
-      {/* Sliding tweets at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 pointer-events-none" style={{ height: '120px', overflow: 'hidden', zIndex: 0 }}>
-        {fallingTweets.map((tweet) => (
-          <div
-            key={tweet.id}
-            className="absolute"
-            style={{
-              left: `${tweet.left}%`,
-              bottom: '20px',
-              animation: 'fadeSlide 4s ease-in-out forwards',
-            }}
-          >
-            <div
-              className="rounded-xl p-3 text-xs shadow-lg max-w-[200px]"
-              style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-secondary)',
-                opacity: 0.5,
-              }}
-            >
-              {tweet.text}
-            </div>
-          </div>
-        ))}
+      {/* Sequential tweet carousel at bottom */}
+      <div 
+        className="fixed bottom-0 left-0 right-0 pointer-events-none flex justify-center items-center" 
+        style={{ height: '100px', zIndex: 0 }}
+      >
+        <div
+          className="rounded-xl p-4 text-sm shadow-lg max-w-md mx-auto transition-opacity duration-300"
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-secondary)',
+            opacity: fadeOut ? 0 : 0.6,
+          }}
+        >
+          {tweetsToShow[currentTweetIndex]}
+        </div>
       </div>
-
-      <style jsx>{`
-        @keyframes fadeSlide {
-          0% {
-            opacity: 0;
-            transform: translateX(-20px);
-          }
-          15% {
-            opacity: 0.5;
-            transform: translateX(0);
-          }
-          85% {
-            opacity: 0.5;
-            transform: translateX(0);
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-        }
-      `}</style>
     </main>
   );
 }
