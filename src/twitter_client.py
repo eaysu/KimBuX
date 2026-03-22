@@ -27,8 +27,10 @@ class TwitterClient:
                 cookies_json = base64.b64decode(cookies_b64).decode("utf-8")
                 cookies_dict = json.loads(cookies_json)
                 self.client.set_cookies(cookies_dict)
+                print(f"✓ Loaded cookies from TWITTER_COOKIES_BASE64 env var")
                 return
-            except Exception:
+            except Exception as e:
+                print(f"✗ Failed to load cookies from env var: {e}")
                 pass  # Fall through to file-based or login
         
         # Try local cookies file
