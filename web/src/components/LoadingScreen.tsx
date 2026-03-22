@@ -44,6 +44,7 @@ interface FallingTweet {
   id: number;
   text: string;
   visible: boolean;
+  left: number;
 }
 
 export default function LoadingScreen({
@@ -77,6 +78,7 @@ export default function LoadingScreen({
         id: tweetIdCounter,
         text: randomTweet,
         visible: true,
+        left: Math.random() * 80 + 10, // 10-90% range
       };
       
       setTweetIdCounter(prev => prev + 1);
@@ -108,7 +110,7 @@ export default function LoadingScreen({
       className="flex flex-col items-center justify-center min-h-screen px-4 overflow-hidden relative"
       style={{ background: "var(--bg-primary)" }}
     >
-      <div className="w-full max-w-sm space-y-8 text-center">
+      <div className="w-full max-w-sm space-y-8 text-center relative" style={{ zIndex: 10 }}>
         <h1
           className="text-3xl font-bold tracking-tight"
           style={{ color: "var(--text-primary)" }}
@@ -173,16 +175,15 @@ export default function LoadingScreen({
       </div>
 
       {/* Falling tweets background animation */}
-      <div className="fixed inset-0 pointer-events-none z-0" style={{ overflow: 'hidden' }}>
+      <div className="fixed inset-0 pointer-events-none" style={{ overflow: 'hidden', zIndex: 0 }}>
         {fallingTweets.map((tweet) => (
           <div
             key={tweet.id}
-            className="absolute animate-fall"
+            className="absolute"
             style={{
-              left: `${Math.random() * 80 + 10}%`,
+              left: `${tweet.left}%`,
               top: '-100px',
               animation: 'fall 4s linear forwards',
-              opacity: 0.6,
             }}
           >
             <div
