@@ -174,16 +174,16 @@ export default function LoadingScreen({
         </div>
       </div>
 
-      {/* Falling tweets background animation */}
-      <div className="fixed inset-0 pointer-events-none" style={{ overflow: 'hidden', zIndex: 0 }}>
+      {/* Sliding tweets at bottom */}
+      <div className="fixed bottom-0 left-0 right-0 pointer-events-none" style={{ height: '120px', overflow: 'hidden', zIndex: 0 }}>
         {fallingTweets.map((tweet) => (
           <div
             key={tweet.id}
             className="absolute"
             style={{
               left: `${tweet.left}%`,
-              top: '-100px',
-              animation: 'fall 4s linear forwards',
+              bottom: '20px',
+              animation: 'fadeSlide 4s ease-in-out forwards',
             }}
           >
             <div
@@ -192,6 +192,7 @@ export default function LoadingScreen({
                 background: 'var(--bg-secondary)',
                 border: '1px solid var(--border)',
                 color: 'var(--text-secondary)',
+                opacity: 0.5,
               }}
             >
               {tweet.text}
@@ -201,20 +202,22 @@ export default function LoadingScreen({
       </div>
 
       <style jsx>{`
-        @keyframes fall {
+        @keyframes fadeSlide {
           0% {
-            transform: translateY(-100px) rotate(0deg);
             opacity: 0;
+            transform: translateX(-20px);
           }
-          10% {
-            opacity: 0.6;
+          15% {
+            opacity: 0.5;
+            transform: translateX(0);
           }
-          90% {
-            opacity: 0.6;
+          85% {
+            opacity: 0.5;
+            transform: translateX(0);
           }
           100% {
-            transform: translateY(100vh) rotate(5deg);
             opacity: 0;
+            transform: translateX(20px);
           }
         }
       `}</style>
