@@ -18,6 +18,7 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
   const [loadingStep, setLoadingStep] = useState(0);
+  const [previewTweets, setPreviewTweets] = useState<string[]>([]);
 
   const handleAnalyze = async () => {
     if (!username.trim()) return;
@@ -25,6 +26,7 @@ export default function Home() {
     setError("");
     setResult(null);
     setLoadingStep(0);
+    setPreviewTweets([]);
 
     const steps = [
       "Profil alınıyor…",
@@ -36,6 +38,18 @@ export default function Home() {
     const interval = setInterval(() => {
       setLoadingStep((prev) => Math.min(prev + 1, steps.length - 1));
     }, 3000);
+
+    // Fetch preview tweets for loading animation (don't wait)
+    fetch(`${API_URL}/api/preview/${username.replace("@", "").trim()}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.tweets && data.tweets.length > 0) {
+          setPreviewTweets(data.tweets.map((t: any) => t.text));
+        }
+      })
+      .catch(() => {
+        // Ignore preview errors - will use default tweets
+      });
 
     try {
       const res = await fetch(`${API_URL}/api/analyze`, {
@@ -74,7 +88,7 @@ export default function Home() {
   };
 
   if (state === "loading") {
-    return <LoadingScreen step={loadingStep} username={username} limit={limit} />;
+    return <LoadingScreen step={loadingStep} username={username} limit={limit} previewTweets={previewTweets} />;
   }
 
   if (state === "done" && result) {

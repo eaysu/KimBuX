@@ -217,6 +217,33 @@ async def analyze(req: AnalyzeRequest, request: Request):
                     raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/preview/{username}")
+async def preview_tweets(username: str):
+    """
+    Quick preview of user's tweets for loading animation.
+    Returns first 10-15 tweets without full analysis.
+    """
+    username = username.lstrip("@").strip().lower()
+    
+    try:
+        tc = TwitterClient()
+        await tc.login()
+        
+        # Just get first 15 tweets quickly
+        tweets = await tc.get_tweets(username, limit=15)
+        
+        if not tweets:
+            return {"tweets": []}
+        
+        # Return just the text
+        preview_tweets = [{"text": t.get("text", "")} for t in tweets[:15] if t.get("text")]
+        
+        return {"tweets": preview_tweets}
+    except Exception:
+        # If preview fails, return empty - don't block main analysis
+        return {"tweets": []}
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}

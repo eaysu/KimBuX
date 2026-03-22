@@ -50,14 +50,19 @@ export default function LoadingScreen({
   step,
   username,
   limit = 100,
+  previewTweets = [],
 }: {
   step: number;
   username: string;
   limit?: number;
+  previewTweets?: string[];
 }) {
   const [elapsed, setElapsed] = useState(0);
   const [fallingTweets, setFallingTweets] = useState<FallingTweet[]>([]);
   const [tweetIdCounter, setTweetIdCounter] = useState(0);
+  
+  // Use real tweets if available, otherwise use samples
+  const tweetsToShow = previewTweets.length > 0 ? previewTweets : SAMPLE_TWEETS;
 
   useEffect(() => {
     const t = setInterval(() => setElapsed((s) => s + 1), 1000);
@@ -67,7 +72,7 @@ export default function LoadingScreen({
   // Falling tweet animation
   useEffect(() => {
     const spawnTweet = () => {
-      const randomTweet = SAMPLE_TWEETS[Math.floor(Math.random() * SAMPLE_TWEETS.length)];
+      const randomTweet = tweetsToShow[Math.floor(Math.random() * tweetsToShow.length)];
       const newTweet: FallingTweet = {
         id: tweetIdCounter,
         text: randomTweet,
