@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import base64
 import asyncio
 import random
 from twikit import Client
@@ -19,9 +20,22 @@ class TwitterClient:
 
     async def login(self):
         """Login using saved cookies or credentials."""
+        # Try environment variable first (for production/Render)
+        cookies_b64 = os.getenv("TWITTER_COOKIES_BASE64")
+        if cookies_b64:
+            try:
+                cookies_json = base64.b64decode(cookies_b64).decode("utf-8")
+                cookies_dict = json.loads(cookies_json)
+                self.client.set_cookies(cookies_dict)
+                return
+            except Exception:
+                pass  # Fall through to file-based or login
+        
+        # Try local cookies file
         if os.path.exists(COOKIES_PATH):
             self.client.load_cookies(COOKIES_PATH)
         else:
+            # Login and save cookies locally
             await self.client.login(
                 auth_info_1=TWITTER_USERNAME,
                 auth_info_2=TWITTER_EMAIL,
