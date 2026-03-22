@@ -36,14 +36,29 @@ class TwitterClient:
         # Try local cookies file
         if os.path.exists(COOKIES_PATH):
             self.client.load_cookies(COOKIES_PATH)
+            print(f"✓ Loaded cookies from {COOKIES_PATH}")
         else:
-            # Login and save cookies locally
-            await self.client.login(
-                auth_info_1=TWITTER_USERNAME,
-                auth_info_2=TWITTER_EMAIL,
-                password=TWITTER_PASSWORD
-            )
-            self.client.save_cookies(COOKIES_PATH)
+            # Login with credentials (with retry)
+            print(f"⚠ No cookies found, logging in with credentials...")
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await self.client.login(
+                        auth_info_1=TWITTER_USERNAME,
+                        auth_info_2=TWITTER_EMAIL,
+                        password=TWITTER_PASSWORD
+                    )
+                    self.client.save_cookies(COOKIES_PATH)
+                    print(f"✓ Login successful, cookies saved to {COOKIES_PATH}")
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 5
+                        print(f"✗ Login attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        print(f"✗ Login failed after {max_retries} attempts: {e}")
+                        raise
 
     async def get_profile(self, username: str) -> dict:
         """Fetch user profile info. Raises on not found / protected."""
