@@ -66,7 +66,11 @@ export default function Home() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.detail || "Bir hata oluştu.");
+        // Handle detail being string or object
+        const errorMsg = typeof data.detail === 'string' 
+          ? data.detail 
+          : (data.detail?.message || data.message || "Bir hata oluştu.");
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();
@@ -74,7 +78,11 @@ export default function Home() {
       setState("done");
     } catch (err: any) {
       clearInterval(interval);
-      setError(err.message || "Bağlantı hatası.");
+      // Ensure error message is always a string
+      const errorMsg = typeof err === 'string' 
+        ? err 
+        : (err.message || err.toString() || "Bağlantı hatası.");
+      setError(errorMsg);
       setState("error");
     }
   };
