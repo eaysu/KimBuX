@@ -69,9 +69,24 @@ async def init_db():
                 UNIQUE(ip_address)
             );
 
+            CREATE TABLE IF NOT EXISTS request_logs (
+                id SERIAL PRIMARY KEY,
+                ip_address TEXT NOT NULL,
+                username TEXT NOT NULL,
+                tweet_limit INT NOT NULL,
+                order_type TEXT NOT NULL,
+                from_cache BOOLEAN NOT NULL DEFAULT FALSE,
+                success BOOLEAN NOT NULL DEFAULT TRUE,
+                error_message TEXT,
+                requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
             CREATE INDEX IF NOT EXISTS idx_analyses_username ON analyses(username);
             CREATE INDEX IF NOT EXISTS idx_negative_cache_username ON negative_cache(username);
             CREATE INDEX IF NOT EXISTS idx_rate_limits_ip ON rate_limits(ip_address);
+            CREATE INDEX IF NOT EXISTS idx_request_logs_ip ON request_logs(ip_address);
+            CREATE INDEX IF NOT EXISTS idx_request_logs_username ON request_logs(username);
+            CREATE INDEX IF NOT EXISTS idx_request_logs_requested_at ON request_logs(requested_at);
         """)
 
 
@@ -259,6 +274,28 @@ async def check_rate_limit(ip_address: str, max_requests: int = 10, admin_ips: l
         )
         
         return True, max_requests - row['request_count'] - 1
+
+
+async def log_request(
+    ip_address: str,
+    username: str,
+    tweet_limit: int,
+    order_type: str,
+    from_cache: bool = False,
+    success: bool = True,
+    error_message: str = ""
+):
+    """Log an analysis request for admin tracking."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO request_logs 
+            (ip_address, username, tweet_limit, order_type, from_cache, success, error_message)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """,
+            ip_address, username.lower(), tweet_limit, order_type, from_cache, success, error_message
+        )
 
 
 async def save_negative_cache(username: str, error_type: str, error_message: str = ""):

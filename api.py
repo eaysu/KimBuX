@@ -14,6 +14,7 @@ from src.database import (
     init_db, get_cached_analysis, save_analysis,
     get_negative_cache, save_negative_cache,
     get_analysis_lock, close_pool, check_rate_limit,
+    log_request,
 )
 
 app = FastAPI(title="KimBuX API")
@@ -84,6 +85,9 @@ async def analyze(req: AnalyzeRequest, request: Request):
     cache_scope = limit if order == "latest" else limit + 10000
     cached = await get_cached_analysis(username, cache_scope)
     if cached:
+        # Log cache hit
+        await log_request(client_ip, username, limit, order, from_cache=True, success=True)
+        
         return {
             "from_cache": True,
             "profile": cached["profile"],
@@ -181,6 +185,9 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 print(f"TOTAL:           {timings['total']}s")
                 print(f"{'='*70}\n")
 
+                # Log successful request
+                await log_request(client_ip, username, limit, order, from_cache=False, success=True)
+
                 return {
                     "from_cache": False,
                     "profile": profile,
@@ -192,10 +199,15 @@ async def analyze(req: AnalyzeRequest, request: Request):
                     "performance": timings,
                 }
 
-            except HTTPException:
+            except HTTPException as http_exc:
+                # Log failed request
+                await log_request(client_ip, username, limit, order, from_cache=False, success=False, error_message=str(http_exc.detail))
                 raise
             except Exception as e:
                 error_str = str(e).lower()
+                # Log failed request
+                await log_request(client_ip, username, limit, order, from_cache=False, success=False, error_message=str(e))
+                
                 if "not found" in error_str:
                     await save_negative_cache(username, "user_not_found", str(e))
                     raise HTTPException(status_code=404, detail=f"@{username} adında bir kullanıcı bulunamadı.")
