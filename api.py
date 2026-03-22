@@ -19,8 +19,8 @@ from src.database import (
 
 app = FastAPI(title="KimBuX API")
 
-# Global semaphore: max 2 concurrent Twitter analyses to avoid rate limits
-_analysis_semaphore = asyncio.Semaphore(2)
+# Global semaphore: max 1 concurrent Twitter analysis - queue other requests
+_analysis_semaphore = asyncio.Semaphore(1)
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,9 +102,9 @@ async def analyze(req: AnalyzeRequest, request: Request):
     if lock.locked():
         raise HTTPException(status_code=409, detail="Bu hesap zaten analiz ediliyor. Lütfen bekleyin.")
 
-    # Semaphore: max 2 concurrent analyses globally
+    # Semaphore: max 1 concurrent analysis globally - others wait in queue
     if _analysis_semaphore._value == 0:
-        raise HTTPException(status_code=429, detail="Sunucu yoğun. Lütfen bir dakika sonra tekrar deneyin.")
+        raise HTTPException(status_code=429, detail="Sırada bekleyin. Başka bir analiz devam ediyor.")
 
     async with _analysis_semaphore:
         async with lock:
