@@ -14,6 +14,7 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [limit, setLimit] = useState(50);
   const [order, setOrder] = useState<"latest" | "oldest">("latest");
+  const [mode, setMode] = useState<"normal" | "twitter" | "linc">("normal");
   const [state, setState] = useState<AnalysisState>("idle");
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
@@ -59,6 +60,7 @@ export default function Home() {
           username: username.replace("@", "").trim(),
           limit,
           order,
+          mode,
         }),
       });
 
@@ -201,6 +203,40 @@ export default function Home() {
             </div>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               {order === "latest" ? "En yeni tweetlerden başlayarak analiz" : "En eski tweetlerden başlayarak analiz"}
+            </p>
+          </div>
+
+          {/* Mode Selector */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}>
+              Analiz Modu
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["normal", "twitter", "linc"] as const).map((val) => (
+                <button
+                  type="button"
+                  key={val}
+                  onClick={() => setMode(val)}
+                  className="rounded-xl py-2.5 text-sm font-medium transition-all cursor-pointer relative z-10 hover:opacity-90 active:scale-95"
+                  style={{
+                    background: mode === val 
+                      ? val === "linc" ? "#e11d48" : val === "twitter" ? "#1d9bf0" : "var(--accent)" 
+                      : "var(--bg-tertiary)",
+                    color: mode === val ? "#fff" : "var(--text-secondary)",
+                    border: `1px solid ${mode === val 
+                      ? val === "linc" ? "#e11d48" : val === "twitter" ? "#1d9bf0" : "var(--accent)" 
+                      : "var(--border)"}`,
+                  }}
+                >
+                  {val === "normal" ? "Normal" : val === "twitter" ? "Twitter Dili" : "Lin\u00e7 Modu"}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {mode === "normal" && "Standart analitik analiz"}
+              {mode === "twitter" && "Twitter a\u011fz\u0131yla, meme diliyle analiz"}
+              {mode === "linc" && "Ac\u0131mas\u0131z ele\u015ftiri modu \u2014 hesab\u0131 yerden yere vurur"}
             </p>
           </div>
 

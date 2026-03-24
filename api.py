@@ -35,6 +35,7 @@ class AnalyzeRequest(BaseModel):
     username: str
     limit: int = 100
     order: str = "latest"  # "latest" (yeniden eskiye) or "oldest" (eskiden yeniye)
+    mode: str = "normal"  # "normal", "twitter", "linc"
 
 
 @app.on_event("startup")
@@ -69,6 +70,7 @@ async def analyze(req: AnalyzeRequest, request: Request):
     username = req.username.lstrip("@").strip().lower()
     limit = req.limit
     order = req.order
+    mode = req.mode if req.mode in ("normal", "twitter", "linc") else "normal"
 
     if not username:
         raise HTTPException(status_code=400, detail="Username cannot be empty.")
@@ -81,8 +83,9 @@ async def analyze(req: AnalyzeRequest, request: Request):
     if neg:
         raise HTTPException(status_code=404, detail=neg["error_message"])
 
-    # Check positive cache (order is part of key via scope encoding)
-    cache_scope = limit if order == "latest" else limit + 10000
+    # Check positive cache (order + mode encoded in scope)
+    mode_offset = {"normal": 0, "twitter": 20000, "linc": 40000}
+    cache_scope = limit + (10000 if order != "latest" else 0) + mode_offset.get(mode, 0)
     cached = await get_cached_analysis(username, cache_scope)
     if cached:
         # Log cache hit
@@ -147,7 +150,7 @@ async def analyze(req: AnalyzeRequest, request: Request):
 
                 # GPT analysis
                 start = time.time()
-                gpt_analysis = await generate_profile_analysis(profile, stats, tweets)
+                gpt_analysis = await generate_profile_analysis(profile, stats, tweets, mode=mode)
                 timings["gpt_analysis"] = round(time.time() - start, 2)
 
                 # Database save

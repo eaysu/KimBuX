@@ -166,7 +166,9 @@ export default function LoadingScreen({
             opacity: fadeOut ? 0 : 0.6,
           }}
         >
-          {tweetsToShow[currentTweetIndex]}
+          {tweetsToShow[currentTweetIndex]?.length > 120 
+            ? tweetsToShow[currentTweetIndex].slice(0, 120) + '…' 
+            : tweetsToShow[currentTweetIndex]}
         </div>
       </div>
     </main>

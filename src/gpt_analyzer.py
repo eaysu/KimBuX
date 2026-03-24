@@ -11,10 +11,62 @@ BASE_DELAY = 5  # seconds
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 
+# Mode-specific configurations
+MODE_CONFIGS = {
+    "normal": {
+        "system_prompt": (
+            "You are a social media profile analyst. You provide insightful but "
+            "cautious analysis. Never make absolute claims. Frame everything as "
+            "estimates based on available data."
+        ),
+        "style_instruction": "",
+        "temperature": 0.4,
+    },
+    "twitter": {
+        "system_prompt": (
+            "Sen Twitter'ın en eski, en toxic, en komik kullanıcısısın. "
+            "Analiz yaparken Twitter ağzıyla, internet jargonuyla, meme diliyle konuş. "
+            "Kısaltmalar, argo, emoji, caps lock, abartı — hepsini kullan. "
+            "Sanki CT'de (Crypto Twitter / Casual Twitter) post atıyormuş gibi yaz. "
+            "Ama yine de analiz doğru ve içerikli olsun, sadece üslup değişsin."
+        ),
+        "style_instruction": """\n\nSTYLE RULES (CRITICAL - Twitter Dili Modu):
+- Twitter ağzıyla yaz. Kısaltmalar, argo, emoji bol kullan.
+- "ratio", "L", "W", "based", "mid", "npc", "main character" gibi Twitter jargonunu kullan.
+- Abartılı ve eğlenceli ol ama bilgi doğru olsun.
+- Cümleleri kısa tut, Twitter post'u gibi yaz.
+- Örnek ton: "bu adam full gaz shitpost makinesi amk 💀", "timeline'ı tek başına taşıyor W", "mid take'lerin kralı"
+- Emoji ve caps lock serbest.
+- Türkçe Twitter ağzı kullan, İngilizce Twitter jargonunu karıştır.""",
+        "temperature": 0.8,
+    },
+    "linc": {
+        "system_prompt": (
+            "Sen acımasız bir Twitter hesap eleştirmenisin. "
+            "Hesabı yerden yere vur, dalga geç, eksiklerini abartarak anlat. "
+            "Sert ol ama kişisel hakaret yapma — içerik ve davranış odaklı eleştir. "
+            "Komik ve iğneleyici ol. Hesabın her detayını mercek altına al ve acımasızca yorumla."
+        ),
+        "style_instruction": """\n\nSTYLE RULES (CRITICAL - Linç Modu):
+- Bu hesabı yerden yere vur. Acımasız ol.
+- Her özelliği eleştirel ve iğneleyici bir dille analiz et.
+- Takipçi sayısı az mı? "Aile grubu bile daha kalabalık." gibi dalga geç.
+- Tweet'leri sıradan mı? "TL'nin en gereksiz hesabı ödülü gidiyor..." gibi vur.
+- Abartılı metaforlar, iğnelemeler, ironik övgüler kullan.
+- Ama kişisel hakaret, ırkçılık, cinsiyetçilik yapma. İçerik ve hesap davranışı üzerinden git.
+- Türkçe yaz, Twitter ağzını da karıştırabilirsin.
+- Komik ol — okuyucu gülerken "aaa harbiden" desin.
+- Her field'ı bu üslupla yaz: profile_summary, user_persona, target_audience, posting_style vs. hepsi linç modunda olmalı.""",
+        "temperature": 0.85,
+    },
+}
+
+
 async def generate_profile_analysis(
     profile: dict,
     stats: dict,
     tweets: list[dict],
+    mode: str = "normal",
 ) -> dict:
     """
     Run GPT analysis pipeline:
@@ -25,8 +77,8 @@ async def generate_profile_analysis(
     cleaned_tweets = [clean_tweet(t["text"]) for t in tweets if t["text"].strip()]
     batch_summaries = await _batch_summarize(cleaned_tweets)
 
-    # Step 2: Final analysis
-    analysis = await _final_analysis(profile, stats, batch_summaries)
+    # Step 2: Final analysis with mode
+    analysis = await _final_analysis(profile, stats, batch_summaries, mode=mode)
     return analysis
 
 
@@ -98,6 +150,7 @@ async def _final_analysis(
     profile: dict,
     stats: dict,
     batch_summaries: list[str],
+    mode: str = "normal",
 ) -> dict:
     """Generate the final structured profile analysis."""
     combined_summary = "\n\n".join(batch_summaries)
@@ -203,6 +256,10 @@ OTHER RULES:
 - Be detailed and specific — avoid generic statements. Reference actual content patterns.
 - Respond in Turkish (Türkçe) regardless of the dominant language of the account."""
 
+    # Add mode-specific style instructions
+    mode_config = MODE_CONFIGS.get(mode, MODE_CONFIGS["normal"])
+    prompt += mode_config["style_instruction"]
+
     # Delay before final analysis call
     await asyncio.sleep(3)
 
@@ -210,15 +267,11 @@ OTHER RULES:
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "You are a social media profile analyst. You provide insightful but "
-                    "cautious analysis. Never make absolute claims. Frame everything as "
-                    "estimates based on available data."
-                ),
+                "content": mode_config["system_prompt"],
             },
             {"role": "user", "content": prompt},
         ],
-        temperature=0.4,
+        temperature=mode_config["temperature"],
         max_tokens=2000,
     )
 
