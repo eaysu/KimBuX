@@ -13,7 +13,6 @@ type AnalysisState = "idle" | "loading" | "done" | "error";
 export default function Home() {
   const [username, setUsername] = useState("");
   const [limit, setLimit] = useState(50);
-  const [order, setOrder] = useState<"latest" | "oldest">("latest");
   const [mode, setMode] = useState<"normal" | "twitter" | "linc">("normal");
   const [state, setState] = useState<AnalysisState>("idle");
   const [result, setResult] = useState<any>(null);
@@ -59,7 +58,6 @@ export default function Home() {
         body: JSON.stringify({
           username: username.replace("@", "").trim(),
           limit,
-          order,
           mode,
         }),
       });
@@ -175,34 +173,6 @@ export default function Home() {
               {limit === 200 && "Tahmini süre: ~2-3 dakika"}
               {limit === 500 && "Tahmini süre: ~4-5 dakika"}
               {limit === 1000 && "Tahmini süre: ~7-9 dakika"}
-            </p>
-          </div>
-
-          {/* Order Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wider"
-              style={{ color: "var(--text-muted)" }}>
-              Sıralama
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["latest", "oldest"] as const).map((val) => (
-                <button
-                  type="button"
-                  key={val}
-                  onClick={() => setOrder(val)}
-                  className="rounded-xl py-2.5 text-sm font-medium transition-all cursor-pointer relative z-10 hover:opacity-90 active:scale-95"
-                  style={{
-                    background: order === val ? "var(--accent)" : "var(--bg-tertiary)",
-                    color: order === val ? "#fff" : "var(--text-secondary)",
-                    border: `1px solid ${order === val ? "var(--accent)" : "var(--border)"}`,
-                  }}
-                >
-                  {val === "latest" ? "Son tweetler" : "İlk tweetler"}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {order === "latest" ? "En yeni tweetlerden başlayarak analiz" : "En eski tweetlerden başlayarak analiz"}
             </p>
           </div>
 
